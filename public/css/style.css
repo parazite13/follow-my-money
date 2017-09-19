@@ -1,0 +1,42 @@
+#main-logo-container{
+    display: inline-block;
+    max-width: 3rem;
+}
+
+#main-logo-container > img{
+    width: 100%;
+}
+
+button{
+    cursor: pointer;
+}
+
+.navbar-nav > li {
+    display: inline-block;
+    margin: auto 0.5rem;
+}
+
+.alert{
+	position: fixed;
+	top: 100px;
+	width: 60%;
+	left: 20%;
+	display: block;
+}
+
+.card{
+    margin-bottom: 0.5rem;
+}
+
+.real-amount-hide{
+    visibility: hidden;
+}
+
+.d-none{
+    display: none !important;
+}
+
+#sidebar{
+    height: fit-content;
+    position: fixed;
+}
