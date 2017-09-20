@@ -17,7 +17,7 @@ class AddSlug extends Migration
             $table->string('slug');
         });
 
-        Schema::table('sub_category', function (Blueprint $table) {
+        Schema::table('subcategory', function (Blueprint $table) {
             $table->string('slug');
         });
 
@@ -37,7 +37,7 @@ class AddSlug extends Migration
             $table->dropColumn('slug');
         });
 
-        Schema::table('sub_category', function (Blueprint $table) {
+        Schema::table('subcategory', function (Blueprint $table) {
             $table->dropColumn('slug');
         });
 
