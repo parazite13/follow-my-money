@@ -149,7 +149,7 @@ class APIController extends Controller
 
         return array(
         	'total' => $total,
-        	'accounts' => 'accounts'
+        	'accounts' => $accounts
         );
 
 	}
