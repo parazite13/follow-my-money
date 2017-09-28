@@ -38,5 +38,34 @@ button{
 
 #sidebar{
     height: fit-content;
+}
+
+#sidebar-container{
     position: fixed;
+    height: -webkit-fill-available;
+    margin-top: -1rem; 
+}
+
+@media (max-width: 575px) {
+  #sidebar-container {
+    z-index: 10;
+    visibility: hidden;
+  }
+}
+
+.collapsing,.collapse, .show, .in {
+  visibility: visible !important;
+  height: 0;
+  -webkit-transition-property: height;
+  transition-property: height;
+  -webkit-transition-timing-function: ease-out;
+  transition-timing-function: ease-out;
+}
+.collapsing.width {
+  -webkit-transition-property: width;
+  transition-property: width;
+  width: 0;
+  height: 100%;
+  -webkit-transition-timing-function: ease-out;
+  transition-timing-function: ease-out;
 }

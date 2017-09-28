@@ -73,6 +73,87 @@ class APIController extends Controller
 		return $subcategories;
 	}
 
+	public function getAccountsAmount(){
+
+		$accounts = $this->getAccounts();
+
+		$accountsInfos = array();
+        $total = array('payed_amount' => 0, 'real_amount' => 0);
+
+        // Pour tous les comptes
+        foreach($accounts as $slug => $account){
+
+            $accountsInfos[$slug]['name'] = $account;
+
+            // On récupere toutes les transactions
+        	$results = DB::table('transaction')
+        		->join('category', 'transaction.category_id', '=', 'category.id')
+        		->leftJoin('subcategory', 'transaction.subcategory_id', '=', 'subcategory.id')
+        		->join('account', 'transaction.account_id', '=', 'account.id')
+        		->select('transaction.id', 'transaction.date', 'transaction.payed_amount', 'transaction.real_amount', 'transaction.description', 'transaction.details', 'transaction.memo', 'category.name as category','subcategory.name as subcategory')
+        		->where('transaction.user_id', '=', Auth::user()->id)
+        		->where('account.slug', '=', $slug)
+        		->get();
+
+        	$accountsInfos[$slug]['transactions'] = $results;
+
+            // On récupere tous les transferts pour lesquelles ce compte intervient
+            $results = DB::table('transfer')
+                ->join('account as from', 'transfer.from_account_id', '=', 'from.id')
+                ->join('account as to', 'transfer.to_account_id', '=', 'to.id')
+                ->select('transfer.id', 'transfer.date', 'transfer.amount', 'transfer.description', 'from.slug as from', 'to.slug as to', 'from.name as fromName', 'to.name as toName')
+                ->where('from.user_id', '=', Auth::user()->id)
+                ->where('to.user_id', '=', Auth::user()->id)
+                ->where(function($query) use ($slug){
+                    $query->where('from.slug', '=', $slug);
+                    $query->orWhere('to.slug', '=', $slug);
+                })
+                ->get();
+
+            $accountsInfos[$slug]['transfer'] = $results;
+
+            // On calcul la somme des transactions
+            $results = DB::table('transaction')
+                ->join('account', 'transaction.account_id', '=', 'account.id')
+                ->where('transaction.user_id', '=', Auth::user()->id)
+                ->where('account.slug', '=', $slug)
+                ->sum('payed_amount');
+
+            // On ajoute la somme des transfert entrant
+            $results += DB::table('transfer')
+                ->join('account as to', 'transfer.to_account_id', '=', 'to.id')
+                ->where('to.user_id', '=', Auth::user()->id)
+                ->where('to.slug', '=', $slug)
+                ->sum('amount');
+
+            // On retire la somme des transfert sortant
+            $results -= DB::table('transfer')
+                ->join('account as from', 'transfer.from_account_id', '=', 'from.id')
+                ->where('from.user_id', '=', Auth::user()->id)
+                ->where('from.slug', '=', $slug)
+                ->sum('amount');
+
+            $accountsInfos[$slug]['sum'] = $results;
+
+            $total['payed_amount'] += $results;
+
+        }
+
+        $results = DB::table('transaction')
+                ->select(DB::raw('SUM(payed_amount) as payed_amount, SUM(real_amount) as real_amount'))
+                ->where('user_id', '=', Auth::user()->id)
+                ->whereNotNull('real_amount')
+                ->get();            
+
+        $total['real_amount'] = $results[0]->real_amount - $results[0]->payed_amount;
+
+        return array(
+        	'total' => $total,
+        	'accounts' => 'accounts'
+        );
+
+	}
+
 	public function addTransaction(AddTransactionRequest $request){
 
 		$categoryId = DB::table('category')

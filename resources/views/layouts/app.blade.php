@@ -31,6 +31,9 @@
                             {{config('app.name', 'Laravel')}}
                         </span>
                     </a>
+                    <button class="navbar-toggler collapsed hidden-sm-up" type="button" data-toggle="collapse" data-target="#sidebar-container" aria-controls="sidebar-container" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
 
                     <!-- Right Side Of Navbar -->
                     <ul class="navbar-nav float-right py-3 d-inline-block   ">
