@@ -73,6 +73,181 @@ class APIController extends Controller
 		return $subcategories;
 	}
 
+	public function getOverviewInfos(){
+
+		$accounts = $this->getAccounts();
+
+        $accountsInfos = array();
+
+        // Pour tous les comptes
+        foreach($accounts as $slug => $account){
+
+            $accountsInfos[$slug]['name'] = $account;
+            $accountsInfos[$slug]['color'] = 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')';
+            
+            // Requete sur les totaux mensuelles
+            $sumsTransaction = DB::table('transaction as t')
+                ->join('account', 't.account_id', '=', 'account.id')
+                ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
+                    (select sum(transaction.payed_amount) from `transaction` 
+                    where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
+                ->where('account.slug', '=', $slug)
+                ->where('t.user_id', '=', Auth::user()->id)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get();
+
+           // Requete sur les totaux des transfert entrant
+            $sumsTransferIn = DB::table('transfer as t')
+                ->join('account as to', 't.to_account_id', '=', 'to.id')
+                ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
+                    (select sum(transfer.amount) from `transfer`
+                    where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
+                ->where('to.user_id', '=', Auth::user()->id)
+                ->where('to.slug', '=', $slug)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get();
+
+            // Requete sur les totaux des transfert sortant
+            $sumsTransferOut = DB::table('transfer as t')
+                ->join('account as from', 't.from_account_id', '=', 'from.id')
+                ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
+                    (select sum(transfer.amount) from `transfer`
+                     where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
+                ->where('from.user_id', '=', Auth::user()->id)
+                ->where('from.slug', '=', $slug)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get();
+           
+
+            // Formatte et stock les valeurs récupérées
+            $oneMonth = 60 * 60 * 24 * 30;
+            $oneYear = 60 * 60 * 24 * 365;
+            $currentMonth = time() - $oneYear;
+            $i = 0;
+            do{
+                
+                $done = false;
+                $accountsInfos[$slug]['monthly'][$i] = 0;
+                foreach($sumsTransaction as $sumTransaction){
+                    if($sumTransaction->month == date('Y-m', $currentMonth)){
+                        $accountsInfos[$slug]['monthly'][$i] = $sumTransaction->amount;
+                        $done = true;
+                        break;
+                    }
+                }
+
+                foreach($sumsTransferIn as $sumTransferIn){
+                    if($sumTransferIn->month == date('Y-m', $currentMonth)){
+                        $accountsInfos[$slug]['monthly'][$i] += $sumTransferIn->amount;
+                        $done = true;
+                        break;
+                    }
+                }
+
+                foreach($sumsTransferOut as $sumTransferOut){
+                    if($sumTransferOut->month == date('Y-m', $currentMonth)){
+                        $accountsInfos[$slug]['monthly'][$i] += $sumTransferOut->amount;
+                        $done = true;
+                        break;
+                    }
+                }
+
+                if(!$done){
+                    if($i > 0){
+                        $accountsInfos[$slug]['monthly'][$i] = $accountsInfos[$slug]['monthly'][$i - 1];  
+                    }else{
+                        $accountsInfos[$slug]['monthly'][$i] = null;        
+                    }
+                }
+
+                $currentMonth += $oneMonth;
+                $i++;
+            }while(date('Y-m', $currentMonth) != date('Y-m'));
+
+        }
+
+        $categoryInfos = array(
+            'category' => array(),
+            'subcategory' => array()
+        );
+
+        // Category sum
+        $results = DB::table('transaction')
+            ->join('account', 'transaction.account_id', '=', 'account.id')
+            ->join('category', 'transaction.category_id', '=', 'category.id')
+            ->select(DB::raw('SUM(transaction.payed_amount) as sum, category.name as name, category.slug as slug'))
+            ->where('transaction.user_id', '=', Auth::user()->id)
+            ->groupBy('transaction.category_id')
+            ->orderBy('category.slug')
+            ->get();
+
+
+        foreach($results as $result){
+            if($result->sum < 0){
+                $categoryInfos['category'][$result->slug] = [
+                    'sum' => abs($result->sum),
+                    'name' => $result->name,
+                    'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
+                ];
+            }
+        }
+
+        // Subcategory sum
+        $results = DB::table('transaction')
+            ->join('account', 'transaction.account_id', '=', 'account.id')
+            ->join('category', 'transaction.category_id', '=', 'category.id')
+            ->leftJoin('subcategory', 'transaction.subcategory_id', '=', 'subcategory.id')
+            ->select(DB::raw('SUM(transaction.payed_amount) as sum, subcategory.name as name, subcategory.slug as slug, category.slug as categorySlug, category.name as categoryName'))
+            ->where('transaction.user_id', '=', Auth::user()->id)
+            ->groupBy(DB::raw('transaction.category_id, transaction.subcategory_id'))
+            ->orderBy('category.slug')
+            ->get();
+
+
+        foreach($results as $result){
+            if($result->sum < 0){
+                if(is_null($result->slug)){
+                    if(array_key_exists($result->categorySlug, $categoryInfos['subcategory'])){
+                        $categoryInfos['subcategory'][$result->categorySlug] += [
+                            'sum' => abs($result->sum),
+                            'name' => $result->categoryName,
+                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
+                        ];
+                    }else{
+                        $categoryInfos['subcategory'][$result->categorySlug] = [
+                            'sum' => abs($result->sum),
+                            'name' => $result->categoryName,
+                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
+                        ];
+                    }
+                }else{
+                    if(array_key_exists($result->categorySlug, $categoryInfos['subcategory'])){
+                        $categoryInfos['subcategory'][$result->slug] += [
+                            'sum' => abs($result->sum),
+                            'name' => $result->name,
+                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
+                        ];
+                    }else{
+                        $categoryInfos['subcategory'][$result->slug] = [
+                            'sum' => abs($result->sum),
+                            'name' => $result->name,
+                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
+                        ];
+                    }
+                }
+            }
+        }
+
+        return array(
+        	'accountsInfos' => $accountsInfos,
+            'categoryInfos' => $categoryInfos
+        );
+
+	}
+
 	public function getAccountsAmount(){
 
 		$accounts = $this->getAccounts();
