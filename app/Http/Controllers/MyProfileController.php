@@ -31,8 +31,8 @@ class MyProfileController extends Controller
             $sumsTransaction = DB::table('transaction as t')
                 ->join('account', 't.account_id', '=', 'account.id')
                 ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
-                    (select sum(transaction.payed_amount) from `transaction` 
-                    where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
+                    (select sum(transaction.payed_amount) from `transaction` inner join `account` on `account`.`id` = `transaction`.`account_id` 
+                    where  DATE_FORMAT(`date`,'%Y-%m') <= month and `account`.`slug` = '".$slug."') AS amount"))
                 ->where('account.slug', '=', $slug)
                 ->where('t.user_id', '=', Auth::user()->id)
                 ->groupBy('month')
