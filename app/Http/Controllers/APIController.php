@@ -73,9 +73,9 @@ class APIController extends Controller
 		return $subcategories;
 	}
 
-	public function getOverviewInfos(){
+	public function getOverviewInfos($start, $end){
 
-		$accounts = $this->getAccounts();
+        $accounts = $this->getAccounts();
 
         $accountsInfos = array();
 
@@ -90,9 +90,11 @@ class APIController extends Controller
                 ->join('account', 't.account_id', '=', 'account.id')
                 ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
                     (select sum(transaction.payed_amount) from `transaction` inner join `account` on `account`.`id` = `transaction`.`account_id` 
-                    where  DATE_FORMAT(`date`,'%Y-%m') <= month and `account`.`slug` = '".$slug."') AS amount"))
+                    where DATE_FORMAT(`date`,'%Y-%m') <= month and `account`.`slug` = '".$slug."') AS amount"))
                 ->where('account.slug', '=', $slug)
                 ->where('t.user_id', '=', Auth::user()->id)
+                ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '>=', $start)
+                ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '<=', $end)
                 ->groupBy('month')
                 ->orderBy('month')
                 ->get();
@@ -105,6 +107,8 @@ class APIController extends Controller
                     where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
                 ->where('to.user_id', '=', Auth::user()->id)
                 ->where('to.slug', '=', $slug)
+                ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '>=', $start)
+                ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '<=', $end)
                 ->groupBy('month')
                 ->orderBy('month')
                 ->get();
@@ -117,56 +121,41 @@ class APIController extends Controller
                      where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
                 ->where('from.user_id', '=', Auth::user()->id)
                 ->where('from.slug', '=', $slug)
+                ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '>=', $start)
+                ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '<=', $end)
                 ->groupBy('month')
                 ->orderBy('month')
                 ->get();
-           
 
-            // Formatte et stock les valeurs récupérées
-            $oneMonth = 60 * 60 * 24 * 30;
-            $oneYear = 60 * 60 * 24 * 365;
-            $currentMonth = time() - $oneYear;
-            $i = 0;
-            do{
-                
-                $done = false;
-                $accountsInfos[$slug]['monthly'][$i] = 0;
-                foreach($sumsTransaction as $sumTransaction){
-                    if($sumTransaction->month == date('Y-m', $currentMonth)){
-                        $accountsInfos[$slug]['monthly'][$i] = $sumTransaction->amount;
-                        $done = true;
-                        break;
-                    }
-                }
+            // Formatte les données précedemment récupérées
+	        foreach($sumsTransaction as $sumTransaction){
+	        	$accountsInfos[$slug]['monthly'][$sumTransaction->month] = $sumTransaction->amount;
+	        }
 
-                foreach($sumsTransferIn as $sumTransferIn){
-                    if($sumTransferIn->month == date('Y-m', $currentMonth)){
-                        $accountsInfos[$slug]['monthly'][$i] += $sumTransferIn->amount;
-                        $done = true;
-                        break;
-                    }
-                }
+	        foreach($sumsTransferIn as $sumTransferIn){
+	        	$accountsInfos[$slug]['monthly'][$sumsTransferIn->month] += $sumsTransferIn->amount;
+	        }
 
-                foreach($sumsTransferOut as $sumTransferOut){
-                    if($sumTransferOut->month == date('Y-m', $currentMonth)){
-                        $accountsInfos[$slug]['monthly'][$i] += $sumTransferOut->amount;
-                        $done = true;
-                        break;
-                    }
-                }
+	        foreach($sumsTransferOut as $sumTransferOut){
+	        	$accountsInfos[$slug]['monthly'][$sumsTransferOut->month] -= $sumsTransferOut->amount;
+	        }
 
-                if(!$done){
-                    if($i > 0){
-                        $accountsInfos[$slug]['monthly'][$i] = $accountsInfos[$slug]['monthly'][$i - 1];  
-                    }else{
-                        $accountsInfos[$slug]['monthly'][$i] = null;        
-                    }
-                }
+	        $currentDate = $start;
+	        while(strtotime($currentDate) <= strtotime($end)){
+	        	if(isset($accountsInfos[$slug]['monthly']) && !array_key_exists($currentDate, $accountsInfos[$slug]['monthly'])){
+	        		$accountsInfos[$slug]['monthly'][$currentDate] = '';
+	        	}
+	        	$currentDate = date("Y-m", strtotime("+1 month", strtotime($currentDate)));
+	        }
 
-                $currentMonth += $oneMonth;
-                $i++;
-            }while(date('Y-m', $currentMonth) != date('Y-m'));
-
+	        if(isset($accountsInfos[$slug]['monthly'])){
+		        uksort($accountsInfos[$slug]['monthly'], function($a, $b){
+		        	if(strtotime($a) < strtotime($b)) return -1;
+		        	else if(strtotime($a) > strtotime($b)) return 1;
+		        	else return 0;
+		        });
+		    }
+        
         }
 
         $categoryInfos = array(
@@ -180,6 +169,8 @@ class APIController extends Controller
             ->join('category', 'transaction.category_id', '=', 'category.id')
             ->select(DB::raw('SUM(transaction.payed_amount) as sum, category.name as name, category.slug as slug'))
             ->where('transaction.user_id', '=', Auth::user()->id)
+            ->where(DB::raw("DATE_FORMAT(`transaction`.`date`,'%Y-%m')"), '>=', $start)
+            ->where(DB::raw("DATE_FORMAT(`transaction`.`date`,'%Y-%m')"), '<=', $end)
             ->groupBy('transaction.category_id')
             ->orderBy('category.slug')
             ->get();
@@ -202,6 +193,8 @@ class APIController extends Controller
             ->leftJoin('subcategory', 'transaction.subcategory_id', '=', 'subcategory.id')
             ->select(DB::raw('SUM(transaction.payed_amount) as sum, subcategory.name as name, subcategory.slug as slug, category.slug as categorySlug, category.name as categoryName'))
             ->where('transaction.user_id', '=', Auth::user()->id)
+            ->where(DB::raw("DATE_FORMAT(`transaction`.`date`,'%Y-%m')"), '>=', $start)
+            ->where(DB::raw("DATE_FORMAT(`transaction`.`date`,'%Y-%m')"), '<=', $end)
             ->groupBy(DB::raw('transaction.category_id, transaction.subcategory_id'))
             ->orderBy('category.slug')
             ->get();
@@ -243,9 +236,8 @@ class APIController extends Controller
 
         return array(
         	'accountsInfos' => $accountsInfos,
-            'categoryInfos' => $categoryInfos
+        	'categoryInfos' => $categoryInfos
         );
-
 	}
 
 	public function getAccountsAmount(){

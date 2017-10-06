@@ -17,257 +17,27 @@ class MyProfileController extends Controller
   
     public function displayOverview(){
 
-        $accounts = app('App\Http\Controllers\AccountController')->getAccounts();
+        $end = date('Y-m');
+        $explode = explode('-', $end);
+        $start = ((intval($explode[0]) - 1) . '-' . $explode[1]);
 
-        $accountsInfos = array();
-
-        // Pour tous les comptes
-        foreach($accounts as $slug => $account){
-
-            $accountsInfos[$slug]['name'] = $account;
-            $accountsInfos[$slug]['color'] = 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')';
-            
-            // Requete sur les totaux mensuelles
-            $sumsTransaction = DB::table('transaction as t')
-                ->join('account', 't.account_id', '=', 'account.id')
-                ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
-                    (select sum(transaction.payed_amount) from `transaction` inner join `account` on `account`.`id` = `transaction`.`account_id` 
-                    where  DATE_FORMAT(`date`,'%Y-%m') <= month and `account`.`slug` = '".$slug."') AS amount"))
-                ->where('account.slug', '=', $slug)
-                ->where('t.user_id', '=', Auth::user()->id)
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get();
-
-           // Requete sur les totaux des transfert entrant
-            $sumsTransferIn = DB::table('transfer as t')
-                ->join('account as to', 't.to_account_id', '=', 'to.id')
-                ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
-                    (select sum(transfer.amount) from `transfer`
-                    where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
-                ->where('to.user_id', '=', Auth::user()->id)
-                ->where('to.slug', '=', $slug)
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get();
-
-            // Requete sur les totaux des transfert sortant
-            $sumsTransferOut = DB::table('transfer as t')
-                ->join('account as from', 't.from_account_id', '=', 'from.id')
-                ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
-                    (select sum(transfer.amount) from `transfer`
-                     where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
-                ->where('from.user_id', '=', Auth::user()->id)
-                ->where('from.slug', '=', $slug)
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get();
-           
-
-            // Formatte et stock les valeurs récupérées
-            $oneMonth = 60 * 60 * 24 * 30;
-            $oneYear = 60 * 60 * 24 * 365;
-            $currentMonth = time() - $oneYear;
-            $i = 0;
-            do{
-                
-                $done = false;
-                $accountsInfos[$slug]['monthly'][$i] = 0;
-                foreach($sumsTransaction as $sumTransaction){
-                    if($sumTransaction->month == date('Y-m', $currentMonth)){
-                        $accountsInfos[$slug]['monthly'][$i] = $sumTransaction->amount;
-                        $done = true;
-                        break;
-                    }
-                }
-
-                foreach($sumsTransferIn as $sumTransferIn){
-                    if($sumTransferIn->month == date('Y-m', $currentMonth)){
-                        $accountsInfos[$slug]['monthly'][$i] += $sumTransferIn->amount;
-                        $done = true;
-                        break;
-                    }
-                }
-
-                foreach($sumsTransferOut as $sumTransferOut){
-                    if($sumTransferOut->month == date('Y-m', $currentMonth)){
-                        $accountsInfos[$slug]['monthly'][$i] += $sumTransferOut->amount;
-                        $done = true;
-                        break;
-                    }
-                }
-
-                if(!$done){
-                    if($i > 0){
-                        $accountsInfos[$slug]['monthly'][$i] = $accountsInfos[$slug]['monthly'][$i - 1];  
-                    }else{
-                        $accountsInfos[$slug]['monthly'][$i] = null;        
-                    }
-                }
-
-                $currentMonth += $oneMonth;
-                $i++;
-            }while(date('Y-m', $currentMonth) != date('Y-m'));
-
-        }
-
-        $categoryInfos = array(
-            'category' => array(),
-            'subcategory' => array()
-        );
-
-        // Category sum
-        $results = DB::table('transaction')
-            ->join('account', 'transaction.account_id', '=', 'account.id')
-            ->join('category', 'transaction.category_id', '=', 'category.id')
-            ->select(DB::raw('SUM(transaction.payed_amount) as sum, category.name as name, category.slug as slug'))
-            ->where('transaction.user_id', '=', Auth::user()->id)
-            ->groupBy('transaction.category_id')
-            ->orderBy('category.slug')
-            ->get();
-
-
-        foreach($results as $result){
-            if($result->sum < 0){
-                $categoryInfos['category'][$result->slug] = [
-                    'sum' => abs($result->sum),
-                    'name' => $result->name,
-                    'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
-                ];
-            }
-        }
-
-        // Subcategory sum
-        $results = DB::table('transaction')
-            ->join('account', 'transaction.account_id', '=', 'account.id')
-            ->join('category', 'transaction.category_id', '=', 'category.id')
-            ->leftJoin('subcategory', 'transaction.subcategory_id', '=', 'subcategory.id')
-            ->select(DB::raw('SUM(transaction.payed_amount) as sum, subcategory.name as name, subcategory.slug as slug, category.slug as categorySlug, category.name as categoryName'))
-            ->where('transaction.user_id', '=', Auth::user()->id)
-            ->groupBy(DB::raw('transaction.category_id, transaction.subcategory_id'))
-            ->orderBy('category.slug')
-            ->get();
-
-
-        foreach($results as $result){
-            if($result->sum < 0){
-                if(is_null($result->slug)){
-                    if(array_key_exists($result->categorySlug, $categoryInfos['subcategory'])){
-                        $categoryInfos['subcategory'][$result->categorySlug] += [
-                            'sum' => abs($result->sum),
-                            'name' => $result->categoryName,
-                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
-                        ];
-                    }else{
-                        $categoryInfos['subcategory'][$result->categorySlug] = [
-                            'sum' => abs($result->sum),
-                            'name' => $result->categoryName,
-                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
-                        ];
-                    }
-                }else{
-                    if(array_key_exists($result->categorySlug, $categoryInfos['subcategory'])){
-                        $categoryInfos['subcategory'][$result->slug] += [
-                            'sum' => abs($result->sum),
-                            'name' => $result->name,
-                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
-                        ];
-                    }else{
-                        $categoryInfos['subcategory'][$result->slug] = [
-                            'sum' => abs($result->sum),
-                            'name' => $result->name,
-                            'color' => 'rgb(' . rand(0, 255) . "," . rand(0, 255) . "," . rand(0, 255) . ')'
-                        ];
-                    }
-                }
-            }
-        }
+        $APIInfos = app('App\Http\Controllers\APIController')->getOverviewInfos($start, $end);
 
         return view('profile.overview')->with([
             'title' => 'overview',
-            'accountsInfos' => $accountsInfos,
-            'categoryInfos' => $categoryInfos
+            'accountsInfos' => $APIInfos['accountsInfos'],
+            'categoryInfos' => $APIInfos['categoryInfos']
         ]);
     }
 
 	public function displayDetails(){
 
-		$accounts = app('App\Http\Controllers\AccountController')->getAccounts();
-
-        $accountsInfos = array();
-        $total = array('payed_amount' => 0, 'real_amount' => 0);
-
-        // Pour tous les comptes
-        foreach($accounts as $slug => $account){
-
-            $accountsInfos[$slug]['name'] = $account;
-
-            // On récupere toutes les transactions
-        	$results = DB::table('transaction')
-        		->join('category', 'transaction.category_id', '=', 'category.id')
-        		->leftJoin('subcategory', 'transaction.subcategory_id', '=', 'subcategory.id')
-        		->join('account', 'transaction.account_id', '=', 'account.id')
-        		->select('transaction.id', 'transaction.date', 'transaction.payed_amount', 'transaction.real_amount', 'transaction.description', 'transaction.details', 'transaction.memo', 'category.name as category','subcategory.name as subcategory')
-        		->where('transaction.user_id', '=', Auth::user()->id)
-        		->where('account.slug', '=', $slug)
-        		->get();
-
-        	$accountsInfos[$slug]['transactions'] = $results;
-
-            // On récupere tous les transferts pour lesquelles ce compte intervient
-            $results = DB::table('transfer')
-                ->join('account as from', 'transfer.from_account_id', '=', 'from.id')
-                ->join('account as to', 'transfer.to_account_id', '=', 'to.id')
-                ->select('transfer.id', 'transfer.date', 'transfer.amount', 'transfer.description', 'from.slug as from', 'to.slug as to', 'from.name as fromName', 'to.name as toName')
-                ->where('from.user_id', '=', Auth::user()->id)
-                ->where('to.user_id', '=', Auth::user()->id)
-                ->where(function($query) use ($slug){
-                    $query->where('from.slug', '=', $slug);
-                    $query->orWhere('to.slug', '=', $slug);
-                })
-                ->get();
-
-            $accountsInfos[$slug]['transfer'] = $results;
-
-            // On calcul la somme des transactions
-            $results = DB::table('transaction')
-                ->join('account', 'transaction.account_id', '=', 'account.id')
-                ->where('transaction.user_id', '=', Auth::user()->id)
-                ->where('account.slug', '=', $slug)
-                ->sum('payed_amount');
-
-            // On ajoute la somme des transfert entrant
-            $results += DB::table('transfer')
-                ->join('account as to', 'transfer.to_account_id', '=', 'to.id')
-                ->where('to.user_id', '=', Auth::user()->id)
-                ->where('to.slug', '=', $slug)
-                ->sum('amount');
-
-            // On retire la somme des transfert sortant
-            $results -= DB::table('transfer')
-                ->join('account as from', 'transfer.from_account_id', '=', 'from.id')
-                ->where('from.user_id', '=', Auth::user()->id)
-                ->where('from.slug', '=', $slug)
-                ->sum('amount');
-
-            $accountsInfos[$slug]['sum'] = $results;
-
-            $total['payed_amount'] += $results;
-
-        }
-
-        $results = DB::table('transaction')
-                ->select(DB::raw('SUM(payed_amount) as payed_amount, SUM(real_amount) as real_amount'))
-                ->where('user_id', '=', Auth::user()->id)
-                ->whereNotNull('real_amount')
-                ->get();            
-
-        $total['real_amount'] = $results[0]->real_amount - $results[0]->payed_amount;
+		$APIInfos = app('App\Http\Controllers\APIController')->getAccountsAmount();
 
         return view('profile.details')->with([
         	'title' => 'details',
-        	'accountsInfos' => $accountsInfos,
-            'total' => $total
+        	'accountsInfos' => $APIInfos['accounts'],
+            'total' => $APIInfos['total']
         ]);
 	}
 

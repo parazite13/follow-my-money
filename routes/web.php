@@ -43,9 +43,4 @@ Route::prefix('my-profile')->group(function () {
 
 	Route::put('add-account', 'AccountController@addAccount')->name('my-profile/add-account');
 	Route::delete('remove-account', 'AccountController@removeAccount')->name('my-profile/remove-account');
-
-	// API Request
-	Route::get('get-categories', 'APIController@getCategories');
-	Route::get('get-subcategories/{parentCategory?}', 'APIController@getSubCategories');
-	Route::get('get-accounts', 'APIController@getAccounts');
 });
