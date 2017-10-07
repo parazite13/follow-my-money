@@ -140,14 +140,32 @@ class APIController extends Controller
 	        	$accountsInfos[$slug]['monthly'][$sumsTransferOut->month] -= $sumsTransferOut->amount;
 	        }
 
+
 	        $currentDate = $start;
+            $previousDate = $start;
+
+            // Pour tous les mois de la période
 	        while(strtotime($currentDate) <= strtotime($end)){
-	        	if(isset($accountsInfos[$slug]['monthly']) && !array_key_exists($currentDate, $accountsInfos[$slug]['monthly'])){
-	        		$accountsInfos[$slug]['monthly'][$currentDate] = '';
+
+                // Si le mois n'a pas déja été rempli
+	        	if(isset($accountsInfos[$slug]['monthly']) 
+                    && !array_key_exists($currentDate, $accountsInfos[$slug]['monthly'])){
+
+                    // Si la valeur précédente a été définie on la récupère pour ce mois-ci
+                    if(isset($accountsInfos[$slug]['monthly'][$previousDate])
+                        && is_numeric($accountsInfos[$slug]['monthly'][$previousDate])){
+                        $accountsInfos[$slug]['monthly'][$currentDate] = $accountsInfos[$slug]['monthly'][$previousDate];
+
+                    // Sinon on ne renseigne pas de valeur
+                    }else{
+	        		    $accountsInfos[$slug]['monthly'][$currentDate] = '';
+                    }
 	        	}
+                $previousDate = $currentDate;
 	        	$currentDate = date("Y-m", strtotime("+1 month", strtotime($currentDate)));
 	        }
 
+            // On tri le tableau par date
 	        if(isset($accountsInfos[$slug]['monthly'])){
 		        uksort($accountsInfos[$slug]['monthly'], function($a, $b){
 		        	if(strtotime($a) < strtotime($b)) return -1;
