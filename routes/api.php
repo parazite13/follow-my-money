@@ -20,7 +20,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     Route::get('get-categories', 'APIController@getCategories');
 	Route::get('get-subcategories/{parentCategory?}', 'APIController@getSubCategories');
 	Route::get('get-accounts', 'APIController@getAccounts');
-	Route::get('get-overview-infos/{start}/{end}', 'APIController@getOverviewInfos');
+	Route::get('get-overview-infos/{start?}/{end?}', 'APIController@getOverviewInfos');
 	Route::get('get-accounts-amount', 'APIController@getAccountsAmount');
 	Route::put('add-transaction', 'APIController@addTransaction');
 });

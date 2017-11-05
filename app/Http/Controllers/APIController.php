@@ -73,7 +73,16 @@ class APIController extends Controller
 		return $subcategories;
 	}
 
-	public function getOverviewInfos($start, $end){
+	public function getOverviewInfos($start=null, $end=null){
+
+        if($end === null){
+            $end = date('Y-m');
+        }
+
+        if($start === null){
+            $explode = explode('-', $end);
+            $start = ((intval($explode[0]) - 1) . '-' . $explode[1]);
+        }
 
         $accounts = $this->getAccounts();
 
