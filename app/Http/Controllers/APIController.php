@@ -355,10 +355,15 @@ class APIController extends Controller
 			->first()
 			->id;
 
-		$accountId = DB::table('account')
-			->where('slug', '=', $request->get('account'))
-			->first()
-			->id;
+		if($request->get('account') == "espece"){
+			$accountId = 0;
+		}else{
+			$accountId = DB::table('account')
+				->where('slug', '=', $request->get('account'))
+				->first()
+				->id;
+		}
+
 
 		if($request->get('subcategory') != ""){
 			$subCategoryId = DB::table('subcategory')
