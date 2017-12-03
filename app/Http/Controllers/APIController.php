@@ -287,6 +287,7 @@ class APIController extends Controller
         		->select('transaction.id', 'transaction.date', 'transaction.payed_amount', 'transaction.real_amount', 'transaction.description', 'transaction.details', 'transaction.memo', 'category.name as category','subcategory.name as subcategory')
         		->where('transaction.user_id', '=', Auth::user()->id)
         		->where('account.slug', '=', $slug)
+                ->orderBy('transaction.date', 'desc')
         		->get();
 
         	$accountsInfos[$slug]['transactions'] = $results;
