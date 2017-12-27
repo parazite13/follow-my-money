@@ -9,7 +9,7 @@ use App\Http\Utility;
 @section('content')
     <div class="container-fluid py-3">
         <div class="row">
-            <div class="col-3 col-md-2 hidden-xs-down"></div>
+            <div class="col-3 col-md-2 hidden-sm-down"></div>
             <div id="sidebar-container" class="col-3 col-md-2 col-sm-4 py-2 width bg-faded" aria-expanded="false">
                 <nav id="sidebar" class="sidebar">
                     <ul class="nav nav-pills flex-column">
@@ -72,7 +72,7 @@ use App\Http\Utility;
                 </nav>
             </div>
 
-            <main class="col-9 col-md-10">
+            <main class="col-9 col-md-10 col-sm-12">
                 <section class="container">
                     <h1 class="mb-3">{{Utility::deslugify($title, true)}}</h1>
                     @yield('section')

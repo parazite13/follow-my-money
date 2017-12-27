@@ -21,6 +21,9 @@
         <nav class="navbar navbar-inverse fixed-top bg-inverse">
             <div class="container-fluid mx-0">
                 <div class="navbar-header">
+                    <button class="navbar-toggler collapsed hidden-md-up" type="button" data-toggle="collapse" data-target="#sidebar-container" aria-controls="sidebar-container" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
 
                     <!-- Branding Image -->
                     <a class="navbar-brand py-3" href="{{url('/')}}">
@@ -31,9 +34,6 @@
                             {{config('app.name', 'Laravel')}}
                         </span>
                     </a>
-                    <button class="navbar-toggler collapsed hidden-sm-up" type="button" data-toggle="collapse" data-target="#sidebar-container" aria-controls="sidebar-container" aria-expanded="false" aria-label="Toggle navigation">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
 
                     <!-- Right Side Of Navbar -->
                     <ul class="navbar-nav float-right py-3 d-inline-block   ">

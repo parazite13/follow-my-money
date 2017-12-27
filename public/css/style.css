@@ -46,7 +46,7 @@ button{
     margin-top: -1rem; 
 }
 
-@media (max-width: 575px) {
+@media (max-width: 768px) {
   #sidebar-container {
     z-index: 10;
     visibility: hidden;
