@@ -142,11 +142,11 @@ class APIController extends Controller
 	        }
 
 	        foreach($sumsTransferIn as $sumTransferIn){
-	        	$accountsInfos[$slug]['monthly'][$sumsTransferIn->month] += $sumsTransferIn->amount;
+	        	$accountsInfos[$slug]['monthly'][$sumTransferIn->month] += $sumTransferIn->amount;
 	        }
 
 	        foreach($sumsTransferOut as $sumTransferOut){
-	        	$accountsInfos[$slug]['monthly'][$sumsTransferOut->month] -= $sumsTransferOut->amount;
+	        	$accountsInfos[$slug]['monthly'][$sumTransferOut->month] -= $sumTransferOut->amount;
 	        }
 
 
