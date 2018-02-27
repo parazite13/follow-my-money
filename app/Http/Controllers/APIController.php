@@ -108,12 +108,12 @@ class APIController extends Controller
                 ->orderBy('month')
                 ->get();
 
-           // Requete sur les totaux des transfert entrant
+            // Requete sur les transferts entrants
             $sumsTransferIn = DB::table('transfer as t')
                 ->join('account as to', 't.to_account_id', '=', 'to.id')
                 ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
                     (select sum(transfer.amount) from `transfer`
-                    where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
+                    where  DATE_FORMAT(`date`,'%Y-%m') = month) AS amount"))
                 ->where('to.user_id', '=', Auth::user()->id)
                 ->where('to.slug', '=', $slug)
                 ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '>=', $start)
@@ -122,12 +122,12 @@ class APIController extends Controller
                 ->orderBy('month')
                 ->get();
 
-            // Requete sur les totaux des transfert sortant
+            // Requete sur les transferts sortants
             $sumsTransferOut = DB::table('transfer as t')
                 ->join('account as from', 't.from_account_id', '=', 'from.id')
                 ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
                     (select sum(transfer.amount) from `transfer`
-                     where  DATE_FORMAT(`date`,'%Y-%m') <= month) AS amount"))
+                     where  DATE_FORMAT(`date`,'%Y-%m') = month) AS amount"))
                 ->where('from.user_id', '=', Auth::user()->id)
                 ->where('from.slug', '=', $slug)
                 ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '>=', $start)
@@ -136,21 +136,14 @@ class APIController extends Controller
                 ->orderBy('month')
                 ->get();
 
+
+
             // Formatte les données précedemment récupérées
-	        foreach($sumsTransaction as $sumTransaction){
-	        	$accountsInfos[$slug]['monthly'][$sumTransaction->month] = $sumTransaction->amount;
-	        }
+            foreach($sumsTransaction as $sumTransaction){
+                $accountsInfos[$slug]['monthly'][$sumTransaction->month] = $sumTransaction->amount;
+            }
 
-	        foreach($sumsTransferIn as $sumTransferIn){
-	        	$accountsInfos[$slug]['monthly'][$sumTransferIn->month] += $sumTransferIn->amount;
-	        }
-
-	        foreach($sumsTransferOut as $sumTransferOut){
-	        	$accountsInfos[$slug]['monthly'][$sumTransferOut->month] -= $sumTransferOut->amount;
-	        }
-
-
-	        $currentDate = $start;
+            $currentDate = $start;
             $previousDate = $start;
 
             // Pour tous les mois de la période
@@ -170,19 +163,33 @@ class APIController extends Controller
 	        		    $accountsInfos[$slug]['monthly'][$currentDate] = '';
                     }
 	        	}
+
+                // Ajoute ou retire les montants issu des transfers
+                foreach($sumsTransferIn as $sumTransferIn){
+                    if(strtotime($sumTransferIn->month) <= strtotime($currentDate)){
+                        $accountsInfos[$slug]['monthly'][$currentDate] += $sumTransferIn->amount;
+                    }
+                }
+
+                foreach($sumsTransferOut as $sumTransferOut){
+                    if(strtotime($sumTransferOut->month) <= strtotime($currentDate)){
+                        $accountsInfos[$slug]['monthly'][$currentDate] -= $sumTransferOut->amount;
+                    }
+                }
+
                 $previousDate = $currentDate;
 	        	$currentDate = date("Y-m", strtotime("+1 month", strtotime($currentDate)));
 	        }
 
             // On tri le tableau par date
-	        if(isset($accountsInfos[$slug]['monthly'])){
-		        uksort($accountsInfos[$slug]['monthly'], function($a, $b){
-		        	if(strtotime($a) < strtotime($b)) return -1;
-		        	else if(strtotime($a) > strtotime($b)) return 1;
-		        	else return 0;
-		        });
-		    }
-        
+            if(isset($accountsInfos[$slug]['monthly'])){
+                uksort($accountsInfos[$slug]['monthly'], function($a, $b){
+                    if(strtotime($a) < strtotime($b)) return -1;
+                    else if(strtotime($a) > strtotime($b)) return 1;
+                    else return 0;
+                });
+            }
+
         }
 
         $categoryInfos = array(
