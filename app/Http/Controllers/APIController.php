@@ -169,7 +169,7 @@ class APIController extends Controller
 
                     // Sinon on ne renseigne pas de valeur
                     }else{
-                        $accountsInfos[$slug]['monthly'][$currentDate] = '';
+                        $accountsInfos[$slug]['monthly'][$currentDate] = 0;
                     }
                 }
 
