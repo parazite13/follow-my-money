@@ -112,8 +112,7 @@ class APIController extends Controller
             $sumsTransferIn = DB::table('transfer as t')
                 ->join('account as to', 't.to_account_id', '=', 'to.id')
                 ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
-                    (select sum(transfer.amount) from `transfer`
-                    where  DATE_FORMAT(`date`,'%Y-%m') = month) AS amount"))
+                    (select sum(transfer.amount) from `transfer` inner join `account` on `transfer`.`to_account_id` = `account`.`id` where DATE_FORMAT(`date`,'%Y-%m') <= month and `account`.`user_id` = 1 and `account`.`slug` = '".$slug."') AS amount"))
                 ->where('to.user_id', '=', Auth::user()->id)
                 ->where('to.slug', '=', $slug)
                 ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '>=', $start)
@@ -126,8 +125,7 @@ class APIController extends Controller
             $sumsTransferOut = DB::table('transfer as t')
                 ->join('account as from', 't.from_account_id', '=', 'from.id')
                 ->select(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m') AS month,
-                    (select sum(transfer.amount) from `transfer`
-                     where  DATE_FORMAT(`date`,'%Y-%m') = month) AS amount"))
+                    (select sum(transfer.amount) from `transfer` inner join `account` on `transfer`.`from_account_id` = `account`.`id` where DATE_FORMAT(`date`,'%Y-%m') <= month and `account`.`user_id` = 1 and `account`.`slug` = '".$slug."') AS amount"))
                 ->where('from.user_id', '=', Auth::user()->id)
                 ->where('from.slug', '=', $slug)
                 ->where(DB::raw("DATE_FORMAT(t.`date`,'%Y-%m')"), '>=', $start)
@@ -136,21 +134,32 @@ class APIController extends Controller
                 ->orderBy('month')
                 ->get();
 
-
-
             // Formatte les données précedemment récupérées
             foreach($sumsTransaction as $sumTransaction){
                 $accountsInfos[$slug]['monthly'][$sumTransaction->month] = $sumTransaction->amount;
             }
 
+            $temp = array();
+            foreach($sumsTransferIn as $sumTransferIn){
+                $temp[$sumTransferIn->month] = $sumTransferIn->amount;
+            }
+            $sumsTransferIn = $temp;
+
+            $temp = array();
+            foreach($sumsTransferOut as $sumTransferOut){
+                $temp[$sumTransferOut->month] = $sumTransferOut->amount;
+            }
+            $sumsTransferOut = $temp;
+
+
             $currentDate = $start;
             $previousDate = $start;
 
             // Pour tous les mois de la période
-	        while(strtotime($currentDate) <= strtotime($end)){
+            while(strtotime($currentDate) <= strtotime($end)){
 
                 // Si le mois n'a pas déja été rempli
-	        	if(isset($accountsInfos[$slug]['monthly']) 
+                if(isset($accountsInfos[$slug]['monthly']) 
                     && !array_key_exists($currentDate, $accountsInfos[$slug]['monthly'])){
 
                     // Si la valeur précédente a été définie on la récupère pour ce mois-ci
@@ -160,26 +169,48 @@ class APIController extends Controller
 
                     // Sinon on ne renseigne pas de valeur
                     }else{
-	        		    $accountsInfos[$slug]['monthly'][$currentDate] = '';
-                    }
-	        	}
-
-                // Ajoute ou retire les montants issu des transfers
-                foreach($sumsTransferIn as $sumTransferIn){
-                    if(strtotime($sumTransferIn->month) <= strtotime($currentDate)){
-                        $accountsInfos[$slug]['monthly'][$currentDate] += $sumTransferIn->amount;
+                        $accountsInfos[$slug]['monthly'][$currentDate] = '';
                     }
                 }
 
-                foreach($sumsTransferOut as $sumTransferOut){
-                    if(strtotime($sumTransferOut->month) <= strtotime($currentDate)){
-                        $accountsInfos[$slug]['monthly'][$currentDate] -= $sumTransferOut->amount;
+                // De meme pour les transferts entrants
+                if(!array_key_exists($currentDate, $sumsTransferIn)){
+
+                    // Si la valeur précédente a été définie on la récupère pour ce mois-ci
+                    if(isset($sumsTransferIn[$previousDate]) && is_numeric($sumsTransferIn[$previousDate])){
+                        $sumsTransferIn[$currentDate] = $sumsTransferIn[$previousDate];
+
+                    // Sinon on ne renseigne pas de valeur
+                    }else{
+                        $sumsTransferIn[$currentDate] = '';
+                    }
+                }
+
+                // De meme pour les transferts sortants
+                if(!array_key_exists($currentDate, $sumsTransferOut)){
+
+                    // Si la valeur précédente a été définie on la récupère pour ce mois-ci
+                    if(isset($sumsTransferOut[$previousDate]) && is_numeric($sumsTransferOut[$previousDate])){
+                        $sumsTransferOut[$currentDate] = $sumsTransferOut[$previousDate];
+
+                    // Sinon on ne renseigne pas de valeur
+                    }else{
+                        $sumsTransferOut[$currentDate] = '';
                     }
                 }
 
                 $previousDate = $currentDate;
-	        	$currentDate = date("Y-m", strtotime("+1 month", strtotime($currentDate)));
-	        }
+                $currentDate = date("Y-m", strtotime("+1 month", strtotime($currentDate)));
+            }
+
+            // Ajoute ou retire les montants issu des transfers
+            foreach($sumsTransferIn as $month => $amount){
+                $accountsInfos[$slug]['monthly'][$month] += $amount;
+            }
+
+            foreach($sumsTransferOut as $month => $amount){
+                $accountsInfos[$slug]['monthly'][$month] -= $amount;
+            }
 
             // On tri le tableau par date
             if(isset($accountsInfos[$slug]['monthly'])){
