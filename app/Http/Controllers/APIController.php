@@ -182,7 +182,7 @@ class APIController extends Controller
 
                     // Sinon on ne renseigne pas de valeur
                     }else{
-                        $sumsTransferIn[$currentDate] = '';
+                        $sumsTransferIn[$currentDate] = 0;
                     }
                 }
 
@@ -195,7 +195,7 @@ class APIController extends Controller
 
                     // Sinon on ne renseigne pas de valeur
                     }else{
-                        $sumsTransferOut[$currentDate] = '';
+                        $sumsTransferOut[$currentDate] = 0;
                     }
                 }
 
